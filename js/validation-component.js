@@ -1,63 +1,102 @@
-// 1. CONFIGURACIÓN DE SPREECOMMERCE
-// Simula la conexión con la API de Spree (o tu backend propio)
-// Basado en el SDK de Spree para manejar productos y carrito [citation:5][citation:10]
+/**
+ * FORM VALIDATION LIST - Web Component para validación visual de formularios
+ * Muestra reglas de validación en tiempo real mientras el usuario escribe
+ */
 
-const SpreeEcommerce = {
-    config: {
-        apiUrl: 'https://demo.spreecommerce.org/api/v2/storefront', // URL de ejemplo de API abierta
-        token: null
-    },
+class FormValidationList extends HTMLElement {
+    constructor() {
+        super();
+        this.input = null;
+        this.ruleItems = [];
+    }
 
-    // Función para obtener productos por tipo (Insumos, Autos, Música)
-    getProductsByType: async (type) => {
-        // type puede ser 'computers', 'music', 'cars'
-        console.log(`Cargando catálogo para: ${type}`);
+    connectedCallback() {
+        const inputId = this.getAttribute('for');
+        console.log(`[Validation] Buscando input: #${inputId}`);
         
-        // Simulación de llamada a API real
-        // En producción aquí iría: fetch(`${this.config.apiUrl}/products?filter[category]=${type}`)
+        if (inputId) {
+            this.input = document.getElementById(inputId);
+            if (this.input) {
+                this.setupValidation();
+                console.log(`[Validation] ✅ Configurado para #${inputId}`);
+            } else {
+                console.warn(`[Validation] ❌ Input #${inputId} no encontrado`);
+                this.style.border = '1px solid red';
+                this.style.padding = '10px';
+                this.style.borderRadius = '5px';
+                this.innerHTML = `<span style="color:red;">❌ Error: Input "${inputId}" no encontrado</span>`;
+            }
+        } else {
+            console.warn('[Validation] No se especificó el atributo "for"');
+        }
+    }
+
+    setupValidation() {
+        // Obtener las reglas
+        const ruleList = this.querySelector('ul');
+        if (ruleList) {
+            this.ruleItems = Array.from(ruleList.querySelectorAll('[data-pattern]'));
+        } else {
+            this.ruleItems = Array.from(this.querySelectorAll('[data-pattern]'));
+        }
         
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                resolve({
-                    status: 'success',
-                    products: [
-                        { id: 1, name: 'Producto Ejemplo', price: 29.99, sku: `ECOMM-${type.toUpperCase()}` }
-                    ]
-                });
-            }, 500);
+        console.log(`[Validation] ${this.ruleItems.length} reglas encontradas`);
+        
+        if (this.input && this.ruleItems.length > 0) {
+            this.input.addEventListener('input', () => this.validate());
+            this.input.addEventListener('blur', () => this.validate());
+            this.validate();
+        }
+    }
+
+    validate() {
+        const value = this.input.value || '';
+        let allValid = true;
+        let matchedCount = 0;
+
+        this.ruleItems.forEach(item => {
+            const pattern = item.getAttribute('data-pattern');
+            if (pattern) {
+                try {
+                    const regex = new RegExp(pattern);
+                    const isValid = regex.test(value);
+                    
+                    if (isValid) {
+                        item.classList.add('matched');
+                        item.classList.remove('unmatched');
+                        matchedCount++;
+                    } else {
+                        item.classList.add('unmatched');
+                        item.classList.remove('matched');
+                        allValid = false;
+                    }
+                } catch (e) {
+                    console.error('Error en regex:', pattern, e);
+                }
+            }
         });
-    },
 
-    // Función Genérica de Checkout (Ventas)
-    processCheckout: async (cartData, customerInfo) => {
-        // Aquí se valida que no falten datos (usando la validación de abajo)
-        if (!customerInfo.email || !customerInfo.address) {
-            throw new Error('Faltan datos del cliente');
+        if (this.input) {
+            if (allValid && value.length > 0) {
+                this.input.setCustomValidity('');
+                this.input.classList.add('is-valid');
+                this.input.classList.remove('is-invalid');
+            } else if (value.length > 0) {
+                this.input.setCustomValidity(`Faltan ${this.ruleItems.length - matchedCount} requisitos`);
+                this.input.classList.add('is-invalid');
+                this.input.classList.remove('is-valid');
+            } else {
+                this.input.setCustomValidity('');
+                this.input.classList.remove('is-valid', 'is-invalid');
+            }
         }
 
-        console.log('Procesando pago para:', cartData);
-        
-        // Simular creación de orden en Spree
-        const orderResponse = await fetch(`${this.config.apiUrl}/checkout`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                cart: cartData,
-                customer: customerInfo
-            })
-        });
-
-        // Simulación de respuesta exitosa
-        return { orderNumber: 'ORD-' + Math.floor(Math.random() * 10000), status: 'paid' };
-    },
-
-    // Seguimiento de Orden
-    trackOrder: async (orderId) => {
-        console.log(`Consultando estado de la orden: ${orderId}`);
-        // Simular consulta
-        return { id: orderId, status: 'shipped', estimated_delivery: '2024-05-20' };
+        return allValid;
     }
-};
+}
 
-// Exportar para uso global (si usas módulos)
-window.SpreeEcommerce = SpreeEcommerce;
+// Registrar el componente
+if (!customElements.get('form-validation-list')) {
+    customElements.define('form-validation-list', FormValidationList);
+    console.log('✅ Web Component "form-validation-list" registrado correctamente');
+}
